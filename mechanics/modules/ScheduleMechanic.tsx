@@ -3,12 +3,12 @@ import SchedulerInterface from '../../components/SchedulerInterface';
 import { useMechanicContext } from '../MechanicContext';
 
 const ScheduleMechanic: React.FC = () => {
-  const { gameState, actions } = useMechanicContext();
+  const { gameState, dispatch } = useMechanicContext();
   return (
     <SchedulerInterface
       gameState={gameState}
-      onUpdateSchedule={actions.updateSchedule}
-      onExecuteWeek={actions.executeWeek}
+      onUpdateSchedule={(schedule) => dispatch({ type: 'update_schedule', schedule })}
+      onExecuteWeek={() => dispatch({ type: 'execute_week' })}
     />
   );
 };

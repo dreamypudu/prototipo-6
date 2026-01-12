@@ -3,9 +3,12 @@ import EmailClient from '../../components/innovatec/EmailClient';
 import { useMechanicContext } from '../MechanicContext';
 
 const InnovatecEmailMechanic: React.FC = () => {
-  const { gameState, actions } = useMechanicContext();
+  const { gameState, dispatch } = useMechanicContext();
   return (
-    <EmailClient inbox={gameState.inbox} onMarkAsRead={actions.markEmailAsRead} />
+    <EmailClient
+      inbox={gameState.inbox}
+      onMarkAsRead={(emailId) => dispatch({ type: 'mark_email_read', emailId })}
+    />
   );
 };
 

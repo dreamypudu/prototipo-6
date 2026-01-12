@@ -9,7 +9,7 @@ interface SplashScreenProps {
 // Se recomienda una imagen cuadrada (ej: 200x200 px) con fondo transparente.
 // Ejemplo: 'https://i.imgur.com/69J15vd.png'
 // ==============================================================================
-const INNOVATEC_LOGO_URL = 'https://i.imgur.com/VmxHK5m.png'; // <- PEGUE LA URL DE SU LOGO AQUÍ
+const INNOVATEC_LOGO_URL = 'https://i.imgur.com/0w2fvoO.png'; // <- PEGUE LA URL DE SU LOGO AQUÍ
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ onStartGame }) => {
   const [loadingProgress, setLoadingProgress] = useState(0);

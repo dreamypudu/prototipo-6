@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GameState, Stakeholder, PlayerAction, TimeSlotType, Commitment, ScenarioNode, ScenarioOption, MeetingSequence, ProcessLogEntry, DecisionLogEntry, Consequences, InboxEmail, PlayerActionLogEntry, Document, ScheduleAssignment, StaffMember, SimulatorVersion, SimulatorConfig, MechanicConfig } from './types';
+import { GameState, Stakeholder, PlayerAction, TimeSlotType, Commitment, ScenarioNode, ScenarioOption, MeetingSequence, ProcessLogEntry, DecisionLogEntry, Consequences, InboxEmail, PlayerActionLogEntry, Document, ScheduleAssignment, StaffMember, SimulatorVersion, SimulatorConfig, MechanicConfig, GameStatus } from './types';
 import { INITIAL_GAME_STATE, TIME_SLOTS, DIRECTOR_OBJECTIVES, SECRETARY_ROLE } from './constants';
 import { scenarios as scenarioData } from './data/scenarios';
 import { EMAIL_TEMPLATES } from './data/emails';
@@ -9,23 +9,20 @@ import { startLogging, finalizeLogging } from './services/Timelogger';
 import { mechanicEngine } from './services/MechanicEngine';
 import { MECHANIC_REGISTRY } from './mechanics/registry';
 import { MechanicProvider } from './mechanics/MechanicContext';
+import { MechanicDispatchAction, OfficeState } from './mechanics/types';
 import { compareExpectedVsActual } from './services/ComparisonEngine';
 import { buildSessionExport } from './services/sessionExport';
+import { useMechanicLogSync } from './hooks/useMechanicLogSync';
 
 import Header from './components/Header';
-import DialogueArea from './components/DialogueArea';
-import ActionBar from './components/ActionBar';
-import Spinner from './components/ui/Spinner';
 import EndGameScreen from './components/EndGameScreen';
 import WarningPopup from './components/WarningPopup';
 import SplashScreen from './components/SplashScreen';
 import Sidebar from './components/Sidebar';
-import DirectorDesk from './components/DirectorDesk';
 import VersionSelector from './components/VersionSelector';
 import InnovatecGame from './games/InnovatecGame';
 
-type ActiveTab = 'interaction' | 'emails' | 'calendar' | 'summary' | 'data_export' | 'experimental_map' | 'documents' | 'schedule' | 'map';
-type GameStatus = 'playing' | 'lost' | 'won';
+type ActiveTab = string;
 type AppStep = 'version_selection' | 'splash' | 'game';
 
 const PERIOD_DURATION = 90;
@@ -97,31 +94,8 @@ export default function App(): React.ReactElement {
   const [warningPopupMessage, setWarningPopupMessage] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const enabledMechanics = resolveMechanics(config);
-
   // Sync mechanic engine buffers with React state periodically or on significant events
-  const syncLogs = useCallback(() => {
-    const flushed = mechanicEngine.flush();
-    if (flushed.events.length || flushed.canonical.length || flushed.expected.length) {
-      setGameState(prev => ({
-        ...prev,
-        mechanicEvents: [...prev.mechanicEvents, ...flushed.events],
-        canonicalActions: [...prev.canonicalActions, ...flushed.canonical],
-        expectedActions: [...prev.expectedActions, ...flushed.expected],
-        comparisons: (() => {
-          const nextExpected = [...prev.expectedActions, ...flushed.expected];
-          const nextCanonical = [...prev.canonicalActions, ...flushed.canonical];
-          const newComparisons = compareExpectedVsActual(
-            nextExpected,
-            nextCanonical,
-            prev.comparisons,
-            { includeNotDone: false }
-          );
-          if (newComparisons.length === 0) return prev.comparisons;
-          return [...prev.comparisons, ...newComparisons];
-        })()
-      }));
-    }
-  }, []);
+  const syncLogs = useMechanicLogSync(setGameState);
 
   useEffect(() => {
     if (appStep !== 'game') return;
@@ -155,75 +129,71 @@ export default function App(): React.ReactElement {
       if (newComparisons.length === 0) return prev;
       return { ...prev, comparisons: [...prev.comparisons, ...newComparisons] };
     });
-  }, [gameStatus]);
+  }, [gameStatus, appStep, setGameState]);
 
-
- useEffect(() => {
+  useEffect(() => {
     if (gameStatus !== 'playing' || appStep !== 'game') return;
 
-    const { stakeholders, day, budget, reputation, projectProgress, criticalWarnings } = gameState;
+    const { stakeholders, day, criticalWarnings, projectProgress } = gameState;
     let newWarnings: string[] = [];
     let stateChanges: Partial<GameState> = {};
     let updatedStakeholders = [...stakeholders];
 
     if (projectProgress >= DIRECTOR_OBJECTIVES.minProgress) {
-        setEndGameMessage(`¡Gestión Exitosa! Has logrado alinear a los tres sectores. El CESFAM opera con un equilibrio razonable entre calidad, normativa y comunidad.`);
-        setGameStatus('won');
-        return;
+      setEndGameMessage(`¡Gestión Exitosa! Has logrado alinear a los tres sectores. El CESFAM opera con un equilibrio razonable entre calidad, normativa y comunidad.`);
+      setGameStatus('won');
+      return;
     }
 
     const requiredStakeholders = stakeholders.filter(s => DIRECTOR_OBJECTIVES.requiredStakeholdersRoles.includes(s.role));
     let stakeholdersWereUpdated = false;
     requiredStakeholders.forEach(s => {
-        if (s.trust < DIRECTOR_OBJECTIVES.minTrustWithRequired && s.status !== 'critical') {
-            const warningMsg = `Crisis de Gobernabilidad: ${s.name} (${s.role}) está boicoteando activamente su gestión.`;
-            if (!criticalWarnings.includes(warningMsg)) {
-                newWarnings.push(warningMsg);
-                updatedStakeholders = updatedStakeholders.map(sh => sh.name === s.name ? { ...sh, status: 'critical' } : sh);
-                stakeholdersWereUpdated = true;
-            }
+      if (s.trust < DIRECTOR_OBJECTIVES.minTrustWithRequired && s.status !== 'critical') {
+        const warningMsg = `Crisis de Gobernabilidad: ${s.name} (${s.role}) está boicoteando activamente su gestión.`;
+        if (!criticalWarnings.includes(warningMsg)) {
+          newWarnings.push(warningMsg);
+          updatedStakeholders = updatedStakeholders.map(sh => sh.name === s.name ? { ...sh, status: 'critical' } : sh);
+          stakeholdersWereUpdated = true;
         }
+      }
     });
-     if (stakeholdersWereUpdated) {
-        stateChanges.stakeholders = updatedStakeholders;
+    if (stakeholdersWereUpdated) {
+      stateChanges.stakeholders = updatedStakeholders;
     }
-    
+
     if (day > DIRECTOR_OBJECTIVES.maxDeadline && !criticalWarnings.includes(`Gestión Fallida: Plazo Excedido.`)) {
-        newWarnings.push(`Gestión Fallida: Plazo Excedido.`);
+      newWarnings.push(`Gestión Fallida: Plazo Excedido.`);
     }
 
     if (newWarnings.length > 0) {
-        setGameState(prev => ({ ...prev, ...stateChanges, criticalWarnings: [...prev.criticalWarnings, ...newWarnings] }));
-        setWarningPopupMessage(newWarnings[0]);
-        setIsTimerPaused(true);
+      setGameState(prev => ({ ...prev, ...stateChanges, criticalWarnings: [...prev.criticalWarnings, ...newWarnings] }));
+      setWarningPopupMessage(newWarnings[0]);
+      setIsTimerPaused(true);
     }
-}, [gameState, gameStatus, appStep]);
+  }, [gameState, gameStatus, appStep]);
 
-
- // INEVITABLE EVENTS CHECKER
- useEffect(() => {
+  useEffect(() => {
     if (appStep !== 'game' || gameStatus !== 'playing' || currentMeeting) return;
 
-    const mandatorySeq = scenarioData.sequences.find(seq => 
-        seq.isInevitable && 
-        !gameState.completedSequences.includes(seq.sequence_id) &&
-        gameState.scenarioSchedule[seq.sequence_id]?.day === gameState.day &&
-        gameState.scenarioSchedule[seq.sequence_id]?.slot === gameState.timeSlot
+    const mandatorySeq = scenarioData.sequences.find(seq =>
+      seq.isInevitable &&
+      !gameState.completedSequences.includes(seq.sequence_id) &&
+      gameState.scenarioSchedule[seq.sequence_id]?.day === gameState.day &&
+      gameState.scenarioSchedule[seq.sequence_id]?.slot === gameState.timeSlot
     );
 
     if (mandatorySeq) {
-        const stakeholder = gameState.stakeholders.find(s => s.role === mandatorySeq.stakeholderRole);
-        if (stakeholder) {
-            setActiveTab('interaction');
-            setCharacterInFocus(stakeholder); 
-            setCurrentMeeting({ sequence: mandatorySeq, nodeIndex: 0 });
-            setCurrentDialogue(mandatorySeq.initialDialogue.replace(/{playerName}/g, gameState.playerName));
-            setPlayerActions([{ label: "Atender Situación Inevitable", cost: "Obligatorio", action: "start_meeting_sequence" }]);
-            setIsTimerPaused(true);
-        }
+      const stakeholder = gameState.stakeholders.find(s => s.role === mandatorySeq.stakeholderRole);
+      if (stakeholder) {
+        setActiveTab('interaction');
+        setCharacterInFocus(stakeholder);
+        setCurrentMeeting({ sequence: mandatorySeq, nodeIndex: 0 });
+        setCurrentDialogue(mandatorySeq.initialDialogue.replace(/{playerName}/g, gameState.playerName));
+        setPlayerActions([{ label: "Atender Situación Inevitable", cost: "Obligatorio", action: "start_meeting_sequence" }]);
+        setIsTimerPaused(true);
+      }
     }
- }, [gameState.day, gameState.timeSlot, gameState.completedSequences, appStep, gameStatus, currentMeeting, gameState.scenarioSchedule, gameState.playerName, gameState.stakeholders]);
-
+  }, [gameState.day, gameState.timeSlot, gameState.completedSequences, appStep, gameStatus, currentMeeting, gameState.scenarioSchedule, gameState.playerName, gameState.stakeholders]);
 
   const advanceTime = useCallback((currentState: GameState): GameState => {
     let nextSlotIndex = TIME_SLOTS.indexOf(currentState.timeSlot) + 1;
@@ -232,29 +202,28 @@ export default function App(): React.ReactElement {
     let historyUpdate = {};
 
     if (nextSlotIndex >= TIME_SLOTS.length) {
-        nextSlotIndex = 0;
-        nextDay++;
-        historyUpdate = { [currentState.day]: currentState.stakeholders };
+      nextSlotIndex = 0;
+      nextDay++;
+      historyUpdate = { [currentState.day]: currentState.stakeholders };
     }
     const nextSlot = TIME_SLOTS[nextSlotIndex];
 
     let newState = { ...currentState, day: nextDay, timeSlot: nextSlot, history: { ...currentState.history, ...historyUpdate } };
 
     if (nextDay > currentState.day) {
-        newEvents.push(`Ha comenzado el día ${nextDay}.`);
-        newState.stakeholders = newState.stakeholders.map(sh => {
-            const updatedCommitments = sh.commitments.map(c => (c.status === 'pending' && nextDay > c.dayDue) ? { ...c, status: 'broken' as const } : c);
-            const newlyBroken = updatedCommitments.filter(c => c.status === 'broken').length - sh.commitments.filter(c => c.status === 'broken').length;
-            let newTrust = Math.max(0, sh.trust - (newlyBroken * 20));
-            return { ...sh, commitments: updatedCommitments, trust: newTrust };
-        });
+      newEvents.push(`Ha comenzado el día ${nextDay}.`);
+      newState.stakeholders = newState.stakeholders.map(sh => {
+        const updatedCommitments = sh.commitments.map(c => (c.status === 'pending' && nextDay > c.dayDue) ? { ...c, status: 'broken' as const } : c);
+        const newlyBroken = updatedCommitments.filter(c => c.status === 'broken').length - sh.commitments.filter(c => c.status === 'broken').length;
+        let newTrust = Math.max(0, sh.trust - (newlyBroken * 20));
+        return { ...sh, commitments: updatedCommitments, trust: newTrust };
+      });
     }
-    
+
     newState.eventsLog = [...newState.eventsLog, ...newEvents];
     return newState;
   }, []);
 
-  
   const presentScenario = useCallback((scenario: ScenarioNode) => {
     const activeStakeholder = gameState.stakeholders.find(s => s.role === scenario.stakeholderRole);
     if (activeStakeholder) setCharacterInFocus(activeStakeholder);
@@ -262,21 +231,20 @@ export default function App(): React.ReactElement {
     setPersonalizedDialogue(scenario.dialogue);
     setPlayerActions(scenario.options.map(opt => ({ label: opt.text, action: opt.option_id, cost: "Decisión" })));
     startLogging(scenario.node_id);
-    
+
     mechanicEngine.emitEvent('dialogue', 'scenario_presented', { nodeId: scenario.node_id });
   }, [setPersonalizedDialogue, gameState.stakeholders]);
-
 
   const advanceTimeAndUpdateFocus = useCallback((justCompletedSequenceId?: string) => {
     let stateAfterMeetingEnd = { ...gameState };
     if (justCompletedSequenceId && !stateAfterMeetingEnd.completedSequences.includes(justCompletedSequenceId)) {
       stateAfterMeetingEnd.completedSequences = [...stateAfterMeetingEnd.completedSequences, justCompletedSequenceId];
     }
-    
+
     if (characterInFocus && characterInFocus.role !== SECRETARY_ROLE) {
-        stateAfterMeetingEnd.stakeholders = stateAfterMeetingEnd.stakeholders.map(sh =>
-            sh.name === characterInFocus.name ? { ...sh, lastMetDay: gameState.day } : sh
-        );
+      stateAfterMeetingEnd.stakeholders = stateAfterMeetingEnd.stakeholders.map(sh =>
+        sh.name === characterInFocus.name ? { ...sh, lastMetDay: gameState.day } : sh
+      );
     }
     const newState = advanceTime(stateAfterMeetingEnd);
     setGameState(newState);
@@ -284,17 +252,17 @@ export default function App(): React.ReactElement {
     setCountdown(PERIOD_DURATION);
     syncLogs();
   }, [gameState, characterInFocus, advanceTime, syncLogs]);
-  
-   useEffect(() => {
+
+  useEffect(() => {
     if (isTimerPaused || activeTab !== 'interaction' || gameStatus !== 'playing' || appStep !== 'game') return;
     const timer = setInterval(() => {
-        setCountdown(prev => {
-            if (prev <= 1) {
-                advanceTimeAndUpdateFocus();
-                return PERIOD_DURATION;
-            }
-            return prev - 1;
-        });
+      setCountdown(prev => {
+        if (prev <= 1) {
+          advanceTimeAndUpdateFocus();
+          return PERIOD_DURATION;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, [isTimerPaused, activeTab, advanceTimeAndUpdateFocus, gameStatus, appStep]);
@@ -303,11 +271,11 @@ export default function App(): React.ReactElement {
     if (appStep !== 'game') return;
     setIsTimerPaused(false);
     setGameState(prev => {
-        const welcomeEmails = EMAIL_TEMPLATES.filter(t => t.trigger.stakeholder_id === 'system-startup');
-        const newEmails = welcomeEmails
+      const welcomeEmails = EMAIL_TEMPLATES.filter(t => t.trigger.stakeholder_id === 'system-startup');
+      const newEmails = welcomeEmails
         .filter(t => !prev.inbox.some(e => e.email_id === t.email_id))
         .map(t => ({ email_id: t.email_id, dayReceived: 1, isRead: false }));
-        return newEmails.length > 0 ? { ...prev, inbox: [...prev.inbox, ...newEmails] } : prev;
+      return newEmails.length > 0 ? { ...prev, inbox: [...prev.inbox, ...newEmails] } : prev;
     });
   }, [appStep]);
 
@@ -488,59 +456,65 @@ export default function App(): React.ReactElement {
     setSelectedVersion(version);
     setConfig(nextConfig);
     if (nextMechanics.length > 0) {
-      setActiveTab(nextMechanics[0].tab_id as ActiveTab);
+      setActiveTab(nextMechanics[0].tab_id);
     }
     setAppStep('splash');
   };
   const handleUpdateScenarioSchedule = (id: string, day: number, slot: TimeSlotType) => { setGameState(prev => ({ ...prev, scenarioSchedule: { ...prev.scenarioSchedule, [id]: { day, slot } } })); };
+  const dispatch = (action: MechanicDispatchAction) => {
+    switch (action.type) {
+      case 'update_schedule':
+        handleUpdateSchedule(action.schedule);
+        return;
+      case 'execute_week':
+        handleExecuteWeek();
+        return;
+      case 'mark_email_read':
+        handleMarkEmailAsRead(action.emailId);
+        return;
+      case 'mark_document_read':
+        handleMarkDocumentAsRead(action.docId);
+        return;
+      case 'update_notes':
+        handleUpdateNotes(action.notes);
+        return;
+      case 'map_interact':
+        return handleMapInteract(action.staff);
+      case 'call_stakeholder':
+        handleCallStakeholder(action.stakeholder);
+        return;
+      case 'update_scenario_schedule':
+        handleUpdateScenarioSchedule(action.id, action.day, action.slot);
+        return;
+      case 'navigate_tab':
+        setActiveTab(action.tabId);
+        return;
+      default:
+        return;
+    }
+  };
 
-  const mechanicActions = {
-    updateSchedule: handleUpdateSchedule,
-    executeWeek: handleExecuteWeek,
-    markEmailAsRead: handleMarkEmailAsRead,
-    markDocumentAsRead: handleMarkDocumentAsRead,
-    updateNotes: handleUpdateNotes,
-    mapInteract: handleMapInteract,
-    callStakeholder: handleCallStakeholder,
-    updateScenarioSchedule: handleUpdateScenarioSchedule
+  const officeState: OfficeState = {
+    variant: 'default',
+    characterInFocus,
+    currentDialogue,
+    playerActions,
+    isLoading,
+    gameStatus,
+    currentMeeting,
+    onPlayerAction: handlePlayerAction,
+    onNavigateTab: (tabId) => setActiveTab(tabId)
   };
 
   const mechanicContextValue = {
     gameState,
     engine: mechanicEngine,
-    actions: mechanicActions,
-    sessionExport
-  };
-
-  const renderCentralPanel = () => {
-    let sceneParticipants: Stakeholder[] | undefined = undefined;
-    if (currentMeeting?.sequence.sequence_id === 'SCHEDULE_WAR_SEQ') {
-        const guzman = gameState.stakeholders.find(s => s.role === 'Jefe Sector Azul');
-        const soto = gameState.stakeholders.find(s => s.role === 'Jefa Sector Rojo');
-        const rios = gameState.stakeholders.find(s => s.role === 'Jefe Sector Amarillo');
-        if (guzman && soto && rios) sceneParticipants = [guzman, soto, rios];
-    }
-    if (characterInFocus) return <DialogueArea key={characterInFocus.name} stakeholder={characterInFocus} participants={sceneParticipants} dialogue={currentDialogue} timeSlot={gameState.timeSlot} />;
-    return <DirectorDesk gameState={gameState} onNavigate={(tab) => setActiveTab(tab as ActiveTab)} onCall={handleCallStakeholder} onUpdateNotes={handleUpdateNotes} />;
+    dispatch,
+    sessionExport,
+    office: officeState
   };
 
   const renderMechanicTab = () => {
-    if (activeTab === 'interaction') {
-      return (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-1 bg-gray-800/50 p-4 rounded-lg border border-gray-700 flex flex-col gap-4 max-h-[640px] overflow-hidden">
-                  <h3 className="text-xl font-bold mb-2 text-yellow-300">Bitácora</h3>
-                  <ul className="space-y-2 text-sm overflow-y-auto pr-2">
-                      {gameState.eventsLog.slice().reverse().map((event, index) => (<li key={index} className="bg-gray-700/50 p-2 rounded-md font-mono"><span className="text-yellow-400">{'>'}</span> {event}</li>))}
-                  </ul>
-                </div>
-                <div className="lg:col-span-2 flex flex-col">
-                    <div className="flex-grow bg-gray-800/50 rounded-t-lg border border-gray-700 min-h-[500px] overflow-hidden">{renderCentralPanel()}</div>
-                    {characterInFocus && <div className="bg-gray-800/50 p-4 rounded-b-lg border border-t-0 border-gray-700 relative min-h-[140px]">{isLoading && <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-b-lg z-10"><Spinner /></div>}<ActionBar actions={playerActions} onAction={handlePlayerAction} disabled={isLoading || gameStatus !== 'playing'} /></div>}
-                </div>
-            </div>
-      );
-    }
 
     const enabledEntry = enabledMechanics.find((mechanic) => mechanic.tab_id === activeTab);
     const registryEntry = enabledEntry
@@ -549,7 +523,7 @@ export default function App(): React.ReactElement {
 
     if (registryEntry?.Module) {
       const Module = registryEntry.Module;
-      return <Module />;
+      return <Module params={enabledEntry?.params} />;
     }
 
     return null;
@@ -574,7 +548,7 @@ export default function App(): React.ReactElement {
           {enabledMechanics.map((m) => (
             <button
               key={m.mechanic_id}
-              onClick={() => setActiveTab(m.tab_id as ActiveTab)}
+              onClick={() => setActiveTab(m.tab_id)}
               className={`${activeTab === m.tab_id ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg transition-colors duration-200`}
             >
               {m.label}

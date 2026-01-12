@@ -41,7 +41,8 @@ export const compareExpectedVsActual = (
     const matches = canonicalActions.filter(
       (action) =>
         action.action_type === expected.action_type &&
-        action.target_ref === expected.target_ref
+        action.target_ref === expected.target_ref &&
+        (!expected.mechanic_id || action.mechanic_id === expected.mechanic_id)
     );
 
     if (matches.length === 0) {

@@ -3,11 +3,13 @@ import ExperimentalMap from '../../components/ExperimentalMap';
 import { useMechanicContext } from '../MechanicContext';
 
 const ExperimentalMapMechanic: React.FC = () => {
-  const { gameState, actions } = useMechanicContext();
+  const { gameState, dispatch } = useMechanicContext();
   return (
     <ExperimentalMap
       gameState={gameState}
-      onUpdateScenarioSchedule={actions.updateScenarioSchedule}
+      onUpdateScenarioSchedule={(id, day, slot) =>
+        dispatch({ type: 'update_scenario_schedule', id, day, slot })
+      }
     />
   );
 };

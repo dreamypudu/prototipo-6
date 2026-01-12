@@ -1,24 +1,15 @@
 import React, { createContext, useContext } from 'react';
-import { GameState, ScheduleAssignment, StaffMember, Stakeholder, TimeSlotType } from '../types';
+import { GameState } from '../types';
 import { mechanicEngine } from '../services/MechanicEngine';
 import { SessionExport } from '../services/sessionExport';
-
-export interface MechanicActions {
-  updateSchedule: (newSchedule: ScheduleAssignment[]) => void;
-  executeWeek: () => void;
-  markEmailAsRead: (emailId: string) => void;
-  markDocumentAsRead: (documentId: string) => void;
-  updateNotes: (notes: string) => void;
-  mapInteract: (staff: StaffMember) => boolean;
-  callStakeholder: (stakeholder: Stakeholder) => void;
-  updateScenarioSchedule: (id: string, day: number, slot: TimeSlotType) => void;
-}
+import { MechanicDispatch, OfficeState } from './types';
 
 export interface MechanicContextValue {
   gameState: GameState;
   engine: typeof mechanicEngine;
-  actions: MechanicActions;
+  dispatch: MechanicDispatch;
   sessionExport: SessionExport;
+  office?: OfficeState;
 }
 
 const MechanicContext = createContext<MechanicContextValue | null>(null);

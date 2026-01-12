@@ -1,6 +1,7 @@
 
 export type TimeSlotType = 'mañana' | 'tarde' | 'noche';
 export type SimulatorVersion = 'CESFAM' | 'SERCOTEC' | 'MUNICIPAL' | 'INNOVATEC';
+export type GameStatus = 'playing' | 'lost' | 'won';
 
 // --- PSYCHOMETRIC & ML LOGGING TYPES ---
 
@@ -33,6 +34,7 @@ export interface ExpectedAction {
   constraints?: Record<string, any>;
   rule_id: string;
   created_at: number;
+  mechanic_id?: string;
 }
 
 export interface ComparisonResult {
@@ -234,6 +236,8 @@ export interface GameState {
   
   // Added strategy property to GameState
   strategy: StrategyState;
+
+  mechanicState?: Record<string, any>;
 
   // NEW LOG BUFFERS
   mechanicEvents: MechanicEvent[];

@@ -3,13 +3,15 @@ import DataExportMechanic from './modules/DataExportMechanic';
 import InnovatecCalendarMechanic from './modules/InnovatecCalendarMechanic';
 import InnovatecEmailMechanic from './modules/InnovatecEmailMechanic';
 import InnovatecExperimentalMapMechanic from './modules/InnovatecExperimentalMapMechanic';
+import InnovatecOfficeMechanic from './modules/InnovatecOfficeMechanic';
 import InnovatecSummaryMechanic from './modules/InnovatecSummaryMechanic';
 
 export const INNOVATEC_REGISTRY: MechanicRegistry = {
   office: {
     mechanic_id: 'office',
     label: 'Oficina Central',
-    tab_id: 'interaction'
+    tab_id: 'interaction',
+    Module: InnovatecOfficeMechanic
   },
   inbox: {
     mechanic_id: 'inbox',

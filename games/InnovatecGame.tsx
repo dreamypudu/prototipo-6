@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GameState, Stakeholder, PlayerAction, TimeSlotType, MeetingSequence, ScenarioNode, DecisionLogEntry, InboxEmail, MechanicConfig, SimulatorConfig } from '../types';
+import { GameState, Stakeholder, PlayerAction, TimeSlotType, MeetingSequence, ScenarioNode, DecisionLogEntry, InboxEmail, MechanicConfig, SimulatorConfig, GameStatus } from '../types';
 import { INITIAL_GAME_STATE, TIME_SLOTS, DIRECTOR_OBJECTIVES, SECRETARY_ROLE } from '../data/innovatec/constants';
 import { scenarios as scenarioData } from '../data/innovatec/scenarios';
 import { EMAIL_TEMPLATES } from '../data/innovatec/emails';
@@ -9,22 +9,18 @@ import { compareExpectedVsActual } from '../services/ComparisonEngine';
 import { buildSessionExport } from '../services/sessionExport';
 import { INNOVATEC_REGISTRY } from '../mechanics/innovatecRegistry';
 import { MechanicProvider } from '../mechanics/MechanicContext';
+import { MechanicDispatchAction, OfficeState } from '../mechanics/types';
+import { useMechanicLogSync } from '../hooks/useMechanicLogSync';
 import { SIMULATOR_CONFIGS } from '../data/simulatorConfigs';
 
 import Header from '../components/Header';
-import StakeholderList from '../components/StakeholderList';
-import DialogueArea from '../components/DialogueArea';
-import ActionBar from '../components/ActionBar';
-import Spinner from '../components/ui/Spinner';
-import ScheduleView from '../components/ScheduleView';
 import EndGameScreen from '../components/EndGameScreen';
 import WarningPopup from '../components/WarningPopup';
 import SplashScreen from '../components/SplashScreen';
 import Sidebar from '../components/Sidebar';
 
-type ActiveTab = 'interaction' | 'emails' | 'calendar' | 'summary' | 'data_export' | 'experimental_map';
+type ActiveTab = string;
 type SchedulingState = 'none' | 'selecting_slot' | 'selecting_stakeholder' | 'confirming_schedule';
-type GameStatus = 'playing' | 'lost' | 'won';
 
 const PERIOD_DURATION = 30; // 30 seconds per time slot
 
@@ -83,30 +79,7 @@ export default function InnovatecGame(): React.ReactElement {
   const [warningPopupMessage, setWarningPopupMessage] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const enabledMechanics = resolveMechanics(config);
-
-  const syncLogs = useCallback(() => {
-    const flushed = mechanicEngine.flush();
-    if (flushed.events.length || flushed.canonical.length || flushed.expected.length) {
-      setGameState(prev => ({
-        ...prev,
-        mechanicEvents: [...prev.mechanicEvents, ...flushed.events],
-        canonicalActions: [...prev.canonicalActions, ...flushed.canonical],
-        expectedActions: [...prev.expectedActions, ...flushed.expected],
-        comparisons: (() => {
-          const nextExpected = [...prev.expectedActions, ...flushed.expected];
-          const nextCanonical = [...prev.canonicalActions, ...flushed.canonical];
-          const newComparisons = compareExpectedVsActual(
-            nextExpected,
-            nextCanonical,
-            prev.comparisons,
-            { includeNotDone: false }
-          );
-          if (newComparisons.length === 0) return prev.comparisons;
-          return [...prev.comparisons, ...newComparisons];
-        })()
-      }));
-    }
-  }, []);
+  const syncLogs = useMechanicLogSync(setGameState);
 
   useEffect(() => {
     if (!isGameStarted) return;
@@ -671,38 +644,7 @@ export default function InnovatecGame(): React.ReactElement {
     setGameState({ ...INITIAL_GAME_STATE, playerName: name });
     setIsGameStarted(true);
     if (enabledMechanics.length > 0) {
-      setActiveTab(enabledMechanics[0].tab_id as ActiveTab);
-    }
-  };
-
-  const renderCentralPanel = () => {
-    switch (schedulingState) {
-        case 'selecting_slot':
-            return <ScheduleView 
-                        currentDay={gameState.day}
-                        currentTimeSlot={gameState.timeSlot}
-                        projectDeadline={gameState.projectDeadline}
-                        calendar={gameState.calendar}
-                        onSlotSelect={handleSlotSelect}
-                        timeSlots={TIME_SLOTS}
-                    />;
-        case 'selecting_stakeholder':
-            return <div className="p-4 h-full flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 text-blue-300 border-b-2 border-blue-500/30 pb-2">Seleccionar Stakeholder</h2>
-                        <p className="text-gray-400 mb-4 flex-shrink-0">{currentDialogue}</p>
-                        <div className="flex-grow overflow-y-auto">
-                           <StakeholderList 
-                                stakeholders={gameState.stakeholders.filter(s => s.role !== SECRETARY_ROLE)} 
-                                onSelectStakeholder={handleRequestMeeting}
-                            />
-                        </div>
-                    </div>;
-        case 'confirming_schedule':
-        case 'none':
-        default:
-             return characterInFocus ? (
-                <DialogueArea key={characterInFocus.name} stakeholder={characterInFocus} dialogue={currentDialogue} timeSlot={gameState.timeSlot}/>
-             ) : null;
+      setActiveTab(enabledMechanics[0].tab_id);
     }
   };
 
@@ -713,68 +655,55 @@ export default function InnovatecGame(): React.ReactElement {
     startedAt: sessionStartRef.current ?? undefined,
     endedAt: sessionEndRef.current ?? undefined
   });
+  const dispatch = (action: MechanicDispatchAction) => {
+    switch (action.type) {
+      case 'mark_email_read':
+        handleMarkEmailAsRead(action.emailId);
+        return;
+      case 'update_notes':
+        setGameState((prev) => ({ ...prev, playerNotes: action.notes }));
+        return;
+      case 'navigate_tab':
+        setActiveTab(action.tabId);
+        return;
+      case 'map_interact':
+        return false;
+      case 'update_schedule':
+      case 'execute_week':
+      case 'mark_document_read':
+      case 'call_stakeholder':
+      case 'update_scenario_schedule':
+        return;
+      default:
+        return;
+    }
+  };
 
-  const mechanicActions = {
-    updateSchedule: () => {},
-    executeWeek: () => {},
-    markEmailAsRead: handleMarkEmailAsRead,
-    markDocumentAsRead: () => {},
-    updateNotes: (notes: string) => setGameState(prev => ({ ...prev, playerNotes: notes })),
-    mapInteract: () => false,
-    callStakeholder: () => {},
-    updateScenarioSchedule: () => {}
+  const officeState: OfficeState = {
+    variant: 'innovatec',
+    secretary,
+    schedulingState,
+    characterInFocus,
+    currentDialogue,
+    playerActions,
+    isLoading,
+    gameStatus,
+    currentMeeting,
+    onPlayerAction: handlePlayerAction,
+    onNavigateTab: (tabId) => setActiveTab(tabId),
+    onSlotSelect: handleSlotSelect,
+    onRequestMeeting: handleRequestMeeting
   };
 
   const mechanicContextValue = {
     gameState,
     engine: mechanicEngine,
-    actions: mechanicActions,
-    sessionExport
+    dispatch,
+    sessionExport,
+    office: officeState
   };
 
   const renderMechanicTab = () => {
-    if (activeTab === 'interaction') {
-      return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-1 bg-gray-800/50 p-4 rounded-lg border border-gray-700 flex flex-col gap-4">
-            {secretary && (
-              <div className="text-center p-2 rounded-lg bg-gray-900/50 border border-gray-700">
-                <img src={secretary.portraitUrl} alt={secretary.name} className="w-24 h-24 rounded-full mx-auto border-2 border-blue-400 object-cover" />
-                <h2 className="text-lg font-bold mt-2 text-blue-300">{secretary.name}</h2>
-                <p className="text-sm text-gray-400">{secretary.role}</p>
-              </div>
-            )}
-            <div className="flex-grow">
-              <h3 className="text-xl font-bold mb-2 text-yellow-300">Novedades del Proyecto</h3>
-              <ul className="space-y-2 text-sm max-h-96 overflow-y-auto pr-2">
-                {gameState.eventsLog.length === 0 && <li className="text-gray-500">Sin nuevos eventos.</li>}
-                {gameState.eventsLog.slice().reverse().map((event, index) => (
-                  <li key={index} className="bg-gray-700/50 p-2 rounded-md">
-                    <span className="font-semibold text-yellow-400">? </span> {event}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2 flex flex-col">
-            <div className="flex-grow bg-gray-800/50 rounded-t-lg border border-b-0 border-gray-700 min-h-[400px] lg:min-h-[500px] overflow-hidden">
-              {renderCentralPanel()}
-            </div>
-            <div className="bg-gray-800/50 p-4 rounded-b-lg border border-t-0 border-gray-700 relative min-h-[140px]">
-              {isLoading && (
-                <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-b-lg z-10">
-                  <Spinner />
-                </div>
-              )}
-              {schedulingState !== 'selecting_slot' && schedulingState !== 'selecting_stakeholder' && (
-                <ActionBar actions={playerActions} onAction={handlePlayerAction} disabled={isLoading || gameStatus !== 'playing'} />
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    }
 
     const enabledEntry = enabledMechanics.find((mechanic) => mechanic.tab_id === activeTab);
     const registryEntry = enabledEntry
@@ -783,7 +712,7 @@ export default function InnovatecGame(): React.ReactElement {
 
     if (registryEntry?.Module) {
       const Module = registryEntry.Module;
-      return <Module />;
+      return <Module params={enabledEntry?.params} />;
     }
 
     return null;
@@ -818,7 +747,7 @@ export default function InnovatecGame(): React.ReactElement {
             {enabledMechanics.map((mechanic) => (
               <button
                 key={mechanic.mechanic_id}
-                onClick={() => setActiveTab(mechanic.tab_id as ActiveTab)}
+                onClick={() => setActiveTab(mechanic.tab_id)}
                 className={`${activeTab === mechanic.tab_id ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg transition-colors duration-200`}
               >
                 {mechanic.label}
