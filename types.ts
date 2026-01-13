@@ -283,6 +283,15 @@ export interface MeetingSequence {
         slot: TimeSlotType;
     };
     isInevitable?: boolean;
+    isContingent?: boolean;
+    contingentRules?: ContingentRules;
+}
+
+export interface ContingentRules {
+  budgetBelow?: number;
+  trustBelow?: number;
+  supportBelow?: number;
+  stakeholderRole?: string;
 }
 
 export interface ScenarioFile {

@@ -122,7 +122,26 @@ const CesfamMap: React.FC<CesfamMapProps> = ({ gameState, onInteract }) => {
                                         onClick={() => {
                                             const shouldLog = onInteract(staff);
                                             if (shouldLog) {
-                                                engine.emitEvent('map', 'interact_staff', { staffId: staff.id });
+                                                engine.emitEvent('map', 'staff_clicked', {
+                                                    staff_id: staff.id,
+                                                    location_id: room.id,
+                                                    day: gameState.day,
+                                                    time_slot: gameState.timeSlot
+                                                });
+                                                const stakeholder = gameState.stakeholders.find(s => s.id === staff.id);
+                                                if (stakeholder) {
+                                                    engine.emitCanonicalAction(
+                                                        'map',
+                                                        'visit_stakeholder',
+                                                        `stakeholder:${stakeholder.id}`,
+                                                        {
+                                                            day: gameState.day,
+                                                            time_slot: gameState.timeSlot,
+                                                            location_id: room.id,
+                                                            arrived_at: Date.now()
+                                                        }
+                                                    );
+                                                }
                                             }
                                         }}
                                         className="group relative"

@@ -70,10 +70,11 @@ const InnovatecOfficeMechanic: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-1 bg-gray-800/50 p-4 rounded-lg border border-gray-700 flex flex-col gap-4">
+    <div className="relative min-h-[680px]">
+      <div className="absolute left-0 top-0 h-full w-3 z-20 peer" />
+      <div className="absolute left-0 top-0 h-full w-80 max-w-[80%] bg-gray-900/95 border border-gray-700 rounded-r-lg shadow-2xl p-4 transform -translate-x-full peer-hover:translate-x-0 hover:translate-x-0 transition-transform duration-200 z-30">
         {secretary && (
-          <div className="text-center p-2 rounded-lg bg-gray-900/50 border border-gray-700">
+          <div className="text-center p-2 rounded-lg bg-gray-900/50 border border-gray-700 mb-4">
             <img
               src={secretary.portraitUrl}
               alt={secretary.name}
@@ -96,25 +97,30 @@ const InnovatecOfficeMechanic: React.FC = () => {
             ))}
           </ul>
         </div>
+        <div className="mt-3 text-[10px] text-gray-400">
+          Desliza el mouse al borde izquierdo para ver la bitacora.
+        </div>
       </div>
 
-      <div className="lg:col-span-2 flex flex-col">
-        <div className="flex-grow bg-gray-800/50 rounded-t-lg border border-b-0 border-gray-700 min-h-[400px] lg:min-h-[500px] overflow-hidden">
-          {renderCentralPanel()}
-        </div>
-        <div className="bg-gray-800/50 p-4 rounded-b-lg border border-t-0 border-gray-700 relative min-h-[140px]">
-          {isLoading && (
-            <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-b-lg z-10">
-              <Spinner />
-            </div>
-          )}
-          {schedulingState !== 'selecting_slot' && schedulingState !== 'selecting_stakeholder' && (
-            <ActionBar
-              actions={playerActions}
-              onAction={onPlayerAction}
-              disabled={isLoading || gameStatus !== 'playing'}
-            />
-          )}
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex-grow flex flex-col">
+          <div className="flex-grow bg-gray-800/50 rounded-t-lg border border-b-0 border-gray-700 min-h-[520px] lg:min-h-[600px] overflow-hidden">
+            {renderCentralPanel()}
+          </div>
+          <div className="bg-gray-800/50 p-4 rounded-b-lg border border-t-0 border-gray-700 relative min-h-[140px]">
+            {isLoading && (
+              <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-b-lg z-10">
+                <Spinner />
+              </div>
+            )}
+            {schedulingState !== 'selecting_slot' && schedulingState !== 'selecting_stakeholder' && (
+              <ActionBar
+                actions={playerActions}
+                onAction={onPlayerAction}
+                disabled={isLoading || gameStatus !== 'playing'}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>

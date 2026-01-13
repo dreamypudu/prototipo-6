@@ -32,6 +32,28 @@ type ResolvedMechanicConfig = MechanicConfig & {
   tab_id: string;
 };
 
+const createInitialGameState = (): GameState => {
+  const initialSchedule: Record<string, {day: number, slot: TimeSlotType}> = {
+      'EVENT_STORM': { day: 1, slot: 'tarde' },
+      'AZUL_MEETING_BLOCKED': { day: 1, slot: 'tarde' },
+  };
+
+  scenarioData.sequences.forEach(seq => {
+      if (seq.triggerMap && (seq.isInevitable || seq.isContingent)) {
+          initialSchedule[seq.sequence_id] = seq.triggerMap;
+      }
+  });
+
+  return {
+      ...INITIAL_GAME_STATE,
+      scenarioSchedule: initialSchedule,
+      mechanicEvents: [],
+      canonicalActions: [],
+      expectedActions: [],
+      comparisons: []
+  };
+};
+
 const resolveMechanics = (config: SimulatorConfig | null): ResolvedMechanicConfig[] => {
   if (!config) return [];
   return config.mechanics.flatMap((mechanic) => {
@@ -58,27 +80,7 @@ export default function App(): React.ReactElement {
   // Added missing selectedVersion state to fix line 439 error
   const [selectedVersion, setSelectedVersion] = useState<SimulatorVersion | null>(null);
   
-  const [gameState, setGameState] = useState<GameState>(() => {
-    const initialSchedule: Record<string, {day: number, slot: TimeSlotType}> = {
-        'EVENT_STORM': { day: 1, slot: 'tarde' },
-        'AZUL_MEETING_BLOCKED': { day: 1, slot: 'tarde' },
-    };
-    
-    scenarioData.sequences.forEach(seq => {
-        if(seq.triggerMap) {
-            initialSchedule[seq.sequence_id] = seq.triggerMap;
-        }
-    });
-    
-    return {
-        ...INITIAL_GAME_STATE,
-        scenarioSchedule: initialSchedule,
-        mechanicEvents: [],
-        canonicalActions: [],
-        expectedActions: [],
-        comparisons: []
-    };
-  });
+  const [gameState, setGameState] = useState<GameState>(createInitialGameState);
   
   const [characterInFocus, setCharacterInFocus] = useState<Stakeholder | null>(null);
   const [currentDialogue, setCurrentDialogue] = useState<string>("");
@@ -96,6 +98,11 @@ export default function App(): React.ReactElement {
   const enabledMechanics = resolveMechanics(config);
   // Sync mechanic engine buffers with React state periodically or on significant events
   const syncLogs = useMechanicLogSync(setGameState);
+  const stageTabs = [
+    { id: 'stage_1', label: 'Etapa 1: Inicio', status: 'active' as const },
+    { id: 'stage_2', label: 'Etapa 2: Progreso', status: 'upcoming' as const },
+    { id: 'stage_3', label: 'Etapa 3: Cierre', status: 'upcoming' as const }
+  ];
 
   useEffect(() => {
     if (appStep !== 'game') return;
@@ -113,6 +120,49 @@ export default function App(): React.ReactElement {
   const setPersonalizedDialogue = useCallback((dialogue: string) => {
     setCurrentDialogue(dialogue.replace(/{playerName}/g, gameState.playerName));
   }, [gameState.playerName]);
+
+  const shouldTriggerContingentSequence = (sequence: MeetingSequence, state: GameState) => {
+    if (!sequence.isContingent || !sequence.contingentRules) return false;
+    const rules = sequence.contingentRules;
+
+    if (typeof rules.budgetBelow === 'number' && state.budget >= rules.budgetBelow) {
+      return false;
+    }
+
+    if (typeof rules.trustBelow === 'number' || typeof rules.supportBelow === 'number') {
+      const roleToCheck = rules.stakeholderRole ?? sequence.stakeholderRole;
+      const stakeholder = state.stakeholders.find(s => s.role === roleToCheck);
+      if (!stakeholder) return false;
+
+      if (typeof rules.trustBelow === 'number' && stakeholder.trust >= rules.trustBelow) {
+        return false;
+      }
+      if (typeof rules.supportBelow === 'number' && stakeholder.support >= rules.supportBelow) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const startSequence = useCallback((sequence: MeetingSequence, stakeholder: Stakeholder, options?: { pauseTimer?: boolean; actionLabel?: string; actionCost?: string }) => {
+    const actionLabel = options?.actionLabel ?? "Comenzar Reunion";
+    const actionCost = options?.actionCost ?? "Tiempo";
+    setActiveTab('interaction');
+    setCharacterInFocus(stakeholder);
+    setCurrentMeeting({ sequence, nodeIndex: 0 });
+    setPersonalizedDialogue(sequence.initialDialogue);
+    setPlayerActions([{ label: actionLabel, cost: actionCost, action: "start_meeting_sequence" }]);
+    const shouldPause = options?.pauseTimer ?? Boolean(sequence.isInevitable || sequence.isContingent);
+    if (shouldPause) {
+      setIsTimerPaused(true);
+    }
+  }, [setPersonalizedDialogue]);
+
+  const getSequenceOrder = (sequenceId: string) => {
+    const match = sequenceId.match(/_(\d+)$/);
+    return match ? Number(match[1]) : 0;
+  };
 
   useEffect(() => {
     if (gameStatus === 'playing') return;
@@ -175,25 +225,28 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     if (appStep !== 'game' || gameStatus !== 'playing' || currentMeeting) return;
 
-    const mandatorySeq = scenarioData.sequences.find(seq =>
+    const inevitableSeq = scenarioData.sequences.find(seq =>
       seq.isInevitable &&
       !gameState.completedSequences.includes(seq.sequence_id) &&
       gameState.scenarioSchedule[seq.sequence_id]?.day === gameState.day &&
       gameState.scenarioSchedule[seq.sequence_id]?.slot === gameState.timeSlot
     );
 
-    if (mandatorySeq) {
-      const stakeholder = gameState.stakeholders.find(s => s.role === mandatorySeq.stakeholderRole);
-      if (stakeholder) {
-        setActiveTab('interaction');
-        setCharacterInFocus(stakeholder);
-        setCurrentMeeting({ sequence: mandatorySeq, nodeIndex: 0 });
-        setCurrentDialogue(mandatorySeq.initialDialogue.replace(/{playerName}/g, gameState.playerName));
-        setPlayerActions([{ label: "Atender Situación Inevitable", cost: "Obligatorio", action: "start_meeting_sequence" }]);
-        setIsTimerPaused(true);
-      }
+    const contingentSeq = scenarioData.sequences.find(seq =>
+      seq.isContingent &&
+      !gameState.completedSequences.includes(seq.sequence_id) &&
+      shouldTriggerContingentSequence(seq, gameState)
+    );
+
+    const sequenceToStart = inevitableSeq ?? contingentSeq;
+    if (!sequenceToStart) return;
+
+    const stakeholder = gameState.stakeholders.find(s => s.role === sequenceToStart.stakeholderRole);
+    if (stakeholder) {
+      const label = sequenceToStart.isInevitable ? "Atender Situacion Inevitable" : "Atender Evento Contingente";
+      startSequence(sequenceToStart, stakeholder, { pauseTimer: true, actionLabel: label, actionCost: "Obligatorio" });
     }
-  }, [gameState.day, gameState.timeSlot, gameState.completedSequences, appStep, gameStatus, currentMeeting, gameState.scenarioSchedule, gameState.playerName, gameState.stakeholders]);
+  }, [gameState.day, gameState.timeSlot, gameState.completedSequences, appStep, gameStatus, currentMeeting, gameState.scenarioSchedule, gameState.stakeholders, startSequence]);
 
   const advanceTime = useCallback((currentState: GameState): GameState => {
     let nextSlotIndex = TIME_SLOTS.indexOf(currentState.timeSlot) + 1;
@@ -297,24 +350,46 @@ export default function App(): React.ReactElement {
       });
       if (timeAdvanced) { advanceTimeAndUpdateFocus(); return false; }
 
+      const blockingInevitable = scenarioData.sequences.find(seq =>
+          seq.isInevitable &&
+          !gameState.completedSequences.includes(seq.sequence_id) &&
+          gameState.scenarioSchedule[seq.sequence_id]?.day === gameState.day &&
+          gameState.scenarioSchedule[seq.sequence_id]?.slot === gameState.timeSlot
+      );
+      if (blockingInevitable) {
+          setWarningPopupMessage("Hay un evento inevitable pendiente. Debes atenderlo antes de iniciar uno proactivo.");
+          return false;
+      }
+      const blockingContingent = scenarioData.sequences.find(seq =>
+          seq.isContingent &&
+          !gameState.completedSequences.includes(seq.sequence_id) &&
+          shouldTriggerContingentSequence(seq, gameState)
+      );
+      if (blockingContingent) {
+          setWarningPopupMessage("Hay un evento contingente pendiente. Debes atenderlo antes de iniciar uno proactivo.");
+          return false;
+      }
+
       const stakeholder = gameState.stakeholders.find(s => s.id === staff.id);
       if (stakeholder) {
           setCharacterInFocus(stakeholder);
           setActiveTab('interaction');
-          const sequenceToStart = scenarioData.sequences.find(seq => {
-              const scheduleInfo = gameState.scenarioSchedule[seq.sequence_id];
-              return (seq.stakeholderRole === stakeholder.role && scheduleInfo?.day === gameState.day && scheduleInfo?.slot === gameState.timeSlot && !gameState.completedSequences.includes(seq.sequence_id));
-          });
-          if (sequenceToStart) {
-               setCurrentMeeting({ sequence: sequenceToStart, nodeIndex: 0 });
-               setPersonalizedDialogue(sequenceToStart.initialDialogue);
-               setPlayerActions([{ label: "Comenzar Reunión", cost: "Tiempo", action: "start_meeting_sequence" }]);
+          const proactiveSequence = scenarioData.sequences
+              .filter(seq =>
+                  seq.stakeholderRole === stakeholder.role &&
+                  !seq.isInevitable &&
+                  !seq.isContingent
+              )
+              .sort((a, b) => getSequenceOrder(a.sequence_id) - getSequenceOrder(b.sequence_id))
+              .find(seq => !gameState.completedSequences.includes(seq.sequence_id));
+          if (proactiveSequence) {
+               startSequence(proactiveSequence, stakeholder, { pauseTimer: false });
                return true;
           }
           setPersonalizedDialogue(`(El ${staff.name} parece ocupado o no tiene nada urgente que tratar contigo en este momento).`);
           setPlayerActions([{ label: "Volver", cost: "Gratis", action: "conclude_meeting" }]);
       } else {
-          setWarningPopupMessage(`INSPECCIÓN RÁPIDA: ${staff.name}`);
+          setWarningPopupMessage(`INSPECCION RAPIDA: ${staff.name}`);
       }
       return true;
   };
@@ -436,6 +511,27 @@ export default function App(): React.ReactElement {
     setGameState(prev => prev.readDocuments.includes(docId) ? prev : { ...prev, readDocuments: [...prev.readDocuments, docId] });
   };
   const handleSidebarNavigate = (tab: any) => { setActiveTab(tab); };
+  const handleReturnHome = () => {
+    setIsSidebarOpen(false);
+    setWarningPopupMessage(null);
+    setGameStatus('playing');
+    setEndGameMessage('');
+    setCurrentMeeting(null);
+    setCharacterInFocus(null);
+    setCurrentDialogue('');
+    setPlayerActions([]);
+    setIsLoading(false);
+    setIsTimerPaused(true);
+    setCountdown(PERIOD_DURATION);
+    setActiveTab('interaction');
+    setGameState(createInitialGameState());
+    sessionStartRef.current = null;
+    sessionEndRef.current = null;
+    sessionIdRef.current = crypto.randomUUID();
+    setConfig(null);
+    setSelectedVersion(null);
+    setAppStep('version_selection');
+  };
   const sessionExport = buildSessionExport({
     gameState,
     config,
@@ -530,14 +626,20 @@ export default function App(): React.ReactElement {
   };
 
 
-  if (selectedVersion === 'INNOVATEC') return <InnovatecGame />;
+  if (selectedVersion === 'INNOVATEC') return <InnovatecGame onExitToHome={handleReturnHome} />;
   if (appStep === 'version_selection') return <VersionSelector onSelect={handleSelectVersion} />;
   if (appStep === 'splash') return <SplashScreen onStartGame={handleStartGame} />;
 
   return (
     <MechanicProvider value={mechanicContextValue}>
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans p-4 flex flex-col">
-       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onNavigate={handleSidebarNavigate} />
+       <Sidebar
+         isOpen={isSidebarOpen}
+         onClose={() => setIsSidebarOpen(false)}
+         onNavigate={handleSidebarNavigate}
+         onReturnHome={handleReturnHome}
+         stages={stageTabs}
+       />
       {warningPopupMessage && <WarningPopup message={warningPopupMessage} onClose={() => setWarningPopupMessage(null)} />}
       {gameStatus !== 'playing' && <EndGameScreen status={gameStatus} message={endGameMessage} />}
       <Header gameState={gameState} countdown={countdown} isTimerPaused={isTimerPaused} onTogglePause={() => setIsTimerPaused(prev => !prev)} onAdvanceTime={handleManualAdvance} onOpenSidebar={() => setIsSidebarOpen(true)} />

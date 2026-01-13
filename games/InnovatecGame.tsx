@@ -21,6 +21,9 @@ import Sidebar from '../components/Sidebar';
 
 type ActiveTab = string;
 type SchedulingState = 'none' | 'selecting_slot' | 'selecting_stakeholder' | 'confirming_schedule';
+interface InnovatecGameProps {
+  onExitToHome?: () => void;
+}
 
 const PERIOD_DURATION = 30; // 30 seconds per time slot
 
@@ -51,7 +54,7 @@ const getInitialSecretaryActions = (): PlayerAction[] => [
 ];
 
 
-export default function InnovatecGame(): React.ReactElement {
+export default function InnovatecGame({ onExitToHome }: InnovatecGameProps): React.ReactElement {
   const sessionIdRef = useRef<string>(crypto.randomUUID());
   const sessionStartRef = useRef<number | null>(null);
   const sessionEndRef = useRef<number | null>(null);
@@ -80,6 +83,11 @@ export default function InnovatecGame(): React.ReactElement {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const enabledMechanics = resolveMechanics(config);
   const syncLogs = useMechanicLogSync(setGameState);
+  const stageTabs = [
+    { id: 'stage_1', label: 'Etapa 1: Descubrimiento', status: 'active' as const },
+    { id: 'stage_2', label: 'Etapa 2: Ejecucion', status: 'upcoming' as const },
+    { id: 'stage_3', label: 'Etapa 3: Cierre', status: 'upcoming' as const }
+  ];
 
   useEffect(() => {
     if (!isGameStarted) return;
@@ -637,6 +645,34 @@ export default function InnovatecGame(): React.ReactElement {
     setActiveTab(tab);
   };
 
+  const handleReturnHome = () => {
+    if (onExitToHome) {
+      onExitToHome();
+      return;
+    }
+    setIsSidebarOpen(false);
+    setGameStatus('playing');
+    setEndGameMessage('');
+    setWarningPopupMessage(null);
+    setCurrentMeeting(null);
+    setCharacterInFocus(null);
+    setCurrentDialogue('');
+    setPlayerActions([]);
+    setIsLoading(false);
+    setIsTimerPaused(true);
+    setCountdown(PERIOD_DURATION);
+    setActiveTab('interaction');
+    setGameState(INITIAL_GAME_STATE);
+    setSecretary(null);
+    setSchedulingState('none');
+    setSelectedSlot(null);
+    setStakeholderToSchedule(null);
+    sessionStartRef.current = null;
+    sessionEndRef.current = null;
+    sessionIdRef.current = crypto.randomUUID();
+    setIsGameStarted(false);
+  };
+
   const handleStartGame = (name: string) => {
     sessionStartRef.current = Date.now();
     sessionEndRef.current = null;
@@ -729,6 +765,8 @@ export default function InnovatecGame(): React.ReactElement {
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           onNavigate={handleSidebarNavigate}
+          onReturnHome={handleReturnHome}
+          stages={stageTabs}
         />
         {warningPopupMessage && <WarningPopup message={warningPopupMessage} onClose={() => setWarningPopupMessage(null)} />}
         {gameStatus !== 'playing' && <EndGameScreen status={gameStatus} message={endGameMessage} />}

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { GameState, Stakeholder } from '../types';
 import { SECRETARY_ROLE } from '../constants';
 import { useMechanicContext } from '../mechanics/MechanicContext';
@@ -9,7 +9,9 @@ import { useMechanicContext } from '../mechanics/MechanicContext';
 // =================================================================================================
 const OFFICE_ASSETS = {
     // 1. LA VISTA GENERAL DE LA OFICINA
-    BACKGROUND: "https://i.imgur.com/Hq7snGJ.png", 
+    BACKGROUND: "https://i.imgur.com/Hq7snGJ.png",
+    // Aspect ratio of the background image (width / height).
+    BACKGROUND_ASPECT_RATIO: 16 / 9,
 
     // 2. ELEMENTOS INDIVIDUALES (Opcional)
     ELEMENT_PC: "",       // Imagen del Monitor/PC
@@ -149,6 +151,46 @@ const PhoneOverlay: React.FC<PhoneOverlayProps> = ({ stakeholders, onCall, onClo
 const DirectorDesk: React.FC<DirectorDeskProps> = ({ gameState, onNavigate, onCall, onUpdateNotes }) => {
     const { engine } = useMechanicContext();
     const [activeView, setActiveView] = useState<'office' | 'pc_menu' | 'notebook' | 'phone'>('office');
+    const deskRef = useRef<HTMLDivElement>(null);
+    const [imageBounds, setImageBounds] = useState({ top: 0, left: 0, width: 0, height: 0 });
+
+    useLayoutEffect(() => {
+        const element = deskRef.current;
+        if (!element) return;
+
+        const ratio = OFFICE_ASSETS.BACKGROUND_ASPECT_RATIO;
+        if (!ratio) return;
+
+        const updateBounds = () => {
+            const rect = element.getBoundingClientRect();
+            const containerRatio = rect.width / rect.height;
+            let width = rect.width;
+            let height = rect.height;
+            let left = 0;
+            let top = 0;
+
+            if (containerRatio > ratio) {
+                height = rect.height;
+                width = height * ratio;
+                left = (rect.width - width) / 2;
+            } else {
+                width = rect.width;
+                height = width / ratio;
+                top = (rect.height - height) / 2;
+            }
+
+            setImageBounds({ top, left, width, height });
+        };
+
+        updateBounds();
+        const observer = new ResizeObserver(updateBounds);
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+
+    const imageStyle = imageBounds.width
+        ? { top: imageBounds.top, left: imageBounds.left, width: imageBounds.width, height: imageBounds.height }
+        : { top: 0, left: 0, width: '100%', height: '100%' };
     const handleNotesUpdate = (notes: string) => {
         engine.emitEvent('office', 'notes_updated', { length: notes.length });
         onUpdateNotes(notes);
@@ -159,11 +201,12 @@ const DirectorDesk: React.FC<DirectorDeskProps> = ({ gameState, onNavigate, onCa
     };
 
     return (
-        <div className="relative w-full h-full min-h-[500px] bg-gray-900 rounded-xl overflow-hidden shadow-inner border border-gray-800 select-none">
+        <div ref={deskRef} className="relative w-full h-full min-h-[620px] bg-gray-900 rounded-xl overflow-hidden shadow-inner border border-gray-800 select-none">
             {/* BACKGROUND IMAGE - OFFICE */}
             <div 
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500"
+                className="absolute bg-cover bg-center transition-transform duration-500"
                 style={{ 
+                    ...imageStyle,
                     backgroundImage: `url('${OFFICE_ASSETS.BACKGROUND}')`, 
                     filter: activeView !== 'office' ? 'blur(4px) brightness(0.5)' : 'none',
                     transform: activeView !== 'office' ? 'scale(1.02)' : 'scale(1)'
@@ -172,7 +215,7 @@ const DirectorDesk: React.FC<DirectorDeskProps> = ({ gameState, onNavigate, onCa
 
             {/* --- HOTSPOTS (Only active in office view) --- */}
             {activeView === 'office' && (
-                <>
+                <div className="absolute z-10" style={imageStyle}>
                     {/* 1. DOOR - EXIT TO MAP */}
                     <div 
                         className="absolute top-[20%] right-[5%] w-[15%] h-[60%] cursor-pointer group z-10 border-2 border-white/20 hover:border-blue-400 rounded-lg"
@@ -239,7 +282,7 @@ const DirectorDesk: React.FC<DirectorDeskProps> = ({ gameState, onNavigate, onCa
                             </span>
                          </div>
                     </div>
-                </>
+                </div>
             )}
 
             {/* --- OVERLAYS --- */}

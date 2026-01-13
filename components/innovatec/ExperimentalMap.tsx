@@ -55,10 +55,18 @@ const ScenarioNodeDisplay: React.FC<{
             <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 space-y-3">
                 {scenario.options.map(option => {
                     const isSelected = playerChoiceId === option.option_id;
+                    const hasExpectedAction = Array.isArray(option.consequences.expected_actions) && option.consequences.expected_actions.length > 0;
                     return (
                         <div key={option.option_id} className={`p-3 rounded-md transition-all border ${isSelected ? 'bg-green-800/50 border-green-500' : 'bg-gray-800 border-transparent'}`}>
                             <div className="flex justify-between items-start gap-3">
-                                <p className="text-sm text-gray-200"><span className="font-bold text-blue-400">{option.option_id}:</span> {option.text}</p>
+                                <p className="text-sm text-gray-200">
+                                    <span className="font-bold text-blue-400">{option.option_id}:</span> {option.text}
+                                    {hasExpectedAction && (
+                                        <span className="ml-2 inline-block rounded bg-blue-900/60 border border-blue-400/50 px-1.5 py-0.5 text-[9px] font-bold text-blue-200">
+                                            EA
+                                        </span>
+                                    )}
+                                </p>
                                 <BridgeResponse option={option} />
                             </div>
                         </div>

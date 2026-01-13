@@ -188,7 +188,8 @@ export const scenarios: ScenarioFile = {
                   trustChange: 5, dialogueResponse: "Entendido. El Dr. Guzmán valora la deferencia. Le avisaré que usted lo visitará.",
                   expected_actions: [
                     {
-                      action_type: "stakeholder_visit",
+                      mechanic_id: "map",
+                      action_type: "visit_stakeholder",
                       target_ref: "stakeholder:andres-guzman",
                       rule_id: "visit_priority_rule_v1"
                     }
@@ -202,7 +203,8 @@ export const scenarios: ScenarioFile = {
                   trustChange: 5, dialogueResponse: "Bien. El Sr. Ríos estará encantado, aunque le advierto que es... intenso.",
                   expected_actions: [
                     {
-                      action_type: "stakeholder_visit",
+                      mechanic_id: "map",
+                      action_type: "visit_stakeholder",
                       target_ref: "stakeholder:daniel-rios",
                       rule_id: "visit_priority_rule_v1"
                     }
@@ -216,7 +218,8 @@ export const scenarios: ScenarioFile = {
                   trustChange: 5, dialogueResponse: "Prudente decisión. La Enf. Soto aprecia el orden. Le avisaré.",
                   expected_actions: [
                     {
-                      action_type: "stakeholder_visit",
+                      mechanic_id: "map",
+                      action_type: "visit_stakeholder",
                       target_ref: "stakeholder:marcela-soto",
                       rule_id: "visit_priority_rule_v1"
                     }
@@ -357,24 +360,21 @@ export const scenarios: ScenarioFile = {
       stakeholderRole: "Jefe Sector Azul",
       initialDialogue: "Director, bienvenido. Espero que su gestión esté a la altura de la complejidad técnica de este centro. En el Sector Azul nos enorgullecemos de nuestra excelencia académica. Tenemos asuntos estratégicos que definir.",
       nodes: ["AZUL_S1_RESEARCH_TIME", "AZUL_S2_ELITISM"],
-      finalDialogue: "Bien. Veremos si sus decisiones rinden frutos en los indicadores de calidad. Con permiso, tengo una videoconferencia con la Facultad.",
-      triggerMap: { day: 2, slot: 'tarde' }
+      finalDialogue: "Bien. Veremos si sus decisiones rinden frutos en los indicadores de calidad. Con permiso, tengo una videoconferencia con la Facultad."
     },
     {
       sequence_id: "ROJO_MEETING_1",
       stakeholderRole: "Jefa Sector Rojo",
       initialDialogue: "Buenos días, Director. Soy Marcela Soto. Le adelanto que en el Sector Rojo trabajamos estrictamente apegados a la normativa vigente. No toleraré improvisaciones que pongan en riesgo a mi equipo.",
       nodes: ["ROJO_S1_BURNOUT_BLOCK", "ROJO_S2_PROTOCOL"],
-      finalDialogue: "Dejaré constancia de esta reunión en el acta interna. Mientras respetemos los derechos de los funcionarios, nos llevaremos bien.",
-      triggerMap: { day: 3, slot: 'mañana' }
+      finalDialogue: "Dejaré constancia de esta reunión en el acta interna. Mientras respetemos los derechos de los funcionarios, nos llevaremos bien."
     },
     {
       sequence_id: "AMARILLO_MEETING_1",
       stakeholderRole: "Jefe Sector Amarillo",
       initialDialogue: "¡Jefe! O sea, Director. Soy el Daniel. Acá en el Amarillo somos de acción, poco papel y harta calle. Pero estamos colapsados, necesitamos ayuda real, no discursos.",
       nodes: ["AMARILLO_S1_EMERGENCY", "AMARILLO_S2_DOCTOR_FLIGHT"],
-      finalDialogue: "Ya jefe, gracias por escuchar. Voy volando a ver un caso social complejo. ¡Cualquier cosa me whatsappea!",
-      triggerMap: { day: 3, slot: 'tarde' }
+      finalDialogue: "Ya jefe, gracias por escuchar. Voy volando a ver un caso social complejo. ¡Cualquier cosa me whatsappea!"
     }
   ]
 };
