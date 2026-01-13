@@ -254,7 +254,7 @@ export default function InnovatecGame({ onExitToHome }: InnovatecGameProps): Rea
     setPersonalizedDialogue(scenario.dialogue);
     setPlayerActions(scenario.options.map(opt => ({ label: opt.text, action: opt.option_id, cost: "Decisión" })));
     startLogging(scenario.node_id);
-    mechanicEngine.emitEvent('dialogue', 'scenario_presented', { nodeId: scenario.node_id });
+    mechanicEngine.emitEvent('dialogue', 'scenario_presented', { node_id: scenario.node_id });
   }, [setPersonalizedDialogue]);
 
 
@@ -472,10 +472,20 @@ export default function InnovatecGame({ onExitToHome }: InnovatecGameProps): Rea
                 if (stakeholderToSchedule && selectedSlot) {
                     const newMeeting = { stakeholderName: stakeholderToSchedule.name, day: selectedSlot.day, slot: selectedSlot.slot };
                     mechanicEngine.emitEvent('calendar', 'meeting_scheduled', {
-                        stakeholderId: stakeholderToSchedule.id,
+                        stakeholder_id: stakeholderToSchedule.id,
                         day: selectedSlot.day,
-                        slot: selectedSlot.slot
+                        time_slot: selectedSlot.slot
                     });
+                    mechanicEngine.emitCanonicalAction(
+                        'calendar',
+                        'schedule_meeting',
+                        `stakeholder:${stakeholderToSchedule.id}`,
+                        {
+                            day: selectedSlot.day,
+                            time_slot: selectedSlot.slot,
+                            scheduled_at: Date.now()
+                        }
+                    );
                     setGameState(prev => {
                         const newState = {
                             ...prev,
@@ -546,7 +556,10 @@ export default function InnovatecGame({ onExitToHome }: InnovatecGameProps): Rea
         const option = scenario.options.find(o => o.option_id === action.action);
         if (option) {
             const { consequences } = option;
-            mechanicEngine.emitEvent('dialogue', 'decision_made', { nodeId: scenario.node_id, optionId: option.option_id });
+            mechanicEngine.emitEvent('dialogue', 'decision_made', {
+                node_id: scenario.node_id,
+                option_id: option.option_id
+            });
 
             const decisionLogEntry: DecisionLogEntry = {
                 day: gameState.day,

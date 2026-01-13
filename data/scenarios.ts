@@ -18,9 +18,10 @@ export const scenarios: ScenarioFile = {
             dialogueResponse: "Excelente visión, Director. Sabía que usted entendía la diferencia entre 'atender' y 'hacer medicina'.",
             expected_actions: [
               {
-                action_type: "schedule_adjustment",
-                target_ref: "staff:andres-guzman",
-                constraints: { activity: "ADMIN", min_hours: 11 },
+                mechanic_id: "scheduler",
+                action_type: "execute_week",
+                target_ref: "global",
+                constraints: { staff_id: "andres-guzman", activity: "ADMIN", min_hours: 11 },
                 rule_id: "research_hours_rule_v1"
               }
             ]
@@ -39,15 +40,17 @@ export const scenarios: ScenarioFile = {
             dialogueResponse: "Mmm. Es poco tiempo, pero acepto el trato por el bien del equipo docente. Negociemos los detalles.",
             expected_actions: [
               {
-                action_type: "schedule_adjustment",
-                target_ref: "staff:andres-guzman",
-                constraints: { activity: "ADMIN", min_hours: 5 },
+                mechanic_id: "scheduler",
+                action_type: "execute_week",
+                target_ref: "global",
+                constraints: { staff_id: "andres-guzman", activity: "ADMIN", min_hours: 5 },
                 rule_id: "research_hours_rule_v1"
               },
               {
-                action_type: "schedule_adjustment",
-                target_ref: "staff:andres-guzman",
-                constraints: { activity: "TRAINING", min_hours: 2 },
+                mechanic_id: "scheduler",
+                action_type: "execute_week",
+                target_ref: "global",
+                constraints: { staff_id: "andres-guzman", activity: "TRAINING", min_hours: 2 },
                 rule_id: "training_commitment_rule_v1"
               }
             ]
@@ -67,9 +70,10 @@ export const scenarios: ScenarioFile = {
             trustChange: -10, supportChange: -10, dialogueResponse: "Formalmente cierto, prácticamente un error. Desmotivará a mi mejor elemento.",
             expected_actions: [
               {
-                action_type: "staff_reallocation",
-                target_ref: "staff:javier-castro",
-                constraints: { sectorId: "AMARILLO" },
+                mechanic_id: "scheduler",
+                action_type: "execute_week",
+                target_ref: "global",
+                constraints: { staff_id: "javier-castro", target_sector_id: "AMARILLO" },
                 rule_id: "cross_sector_help_rule_v1"
               }
             ]
@@ -137,9 +141,10 @@ export const scenarios: ScenarioFile = {
             trustChange: 20, supportChange: 15, reputationChange: 10, dialogueResponse: "¡Grande Jefe! Sabía que usted tenía calle. Voy corriendo a avisarle a la Francisca.",
             expected_actions: [
               {
-                action_type: "room_allocation",
-                target_ref: "room:BOX_1", // Using box 1 as proxy for blue room
-                constraints: { sectorId: "AMARILLO", duration: "mañana" },
+                mechanic_id: "scheduler",
+                action_type: "execute_week",
+                target_ref: "global",
+                constraints: { room_id: "BOX_1", target_sector_id: "AMARILLO", time_window: "AM" },
                 rule_id: "emergency_room_rule_v1"
               }
             ]
@@ -304,8 +309,9 @@ export const scenarios: ScenarioFile = {
                   dialogueResponse: "Bien. Veremos cómo distribuye la miseria.",
                   expected_actions: [
                     {
-                      action_type: "conflict_resolution",
-                      target_ref: "mechanic:scheduler",
+                      mechanic_id: "scheduler",
+                      action_type: "execute_week",
+                      target_ref: "global",
                       constraints: { total_resolved: 3 },
                       rule_id: "scheduler_war_rule_v1"
                     }

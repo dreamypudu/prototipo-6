@@ -78,6 +78,41 @@ Arquitectura de datos (psicometria)
    - comparaciones
 
 
+Formatos JSON por mecanica
+--------------------------
+Formato base:
+- MechanicEvent: { event_id, mechanic_id, event_type, timestamp, payload }
+- CanonicalAction: { canonical_action_id, mechanic_id, action_type, target_ref, value_final, committed_at, context? }
+- ExpectedAction: { expected_action_id, source{node_id, option_id}, mechanic_id?, action_type, target_ref, constraints?, rule_id, created_at }
+
+Mecanicas y payloads:
+- map
+  - event: staff_clicked -> { staff_id, location_id, day, time_slot }
+  - canonical: visit_stakeholder -> target_ref stakeholder:{id}, value_final { day, time_slot, location_id, arrived_at }
+- inbox (email)
+  - event: read_email -> { email_id, day, time_slot }
+  - canonical: read_email -> target_ref email:{email_id}, value_final { email_id, day, time_slot, read_at }
+- documents
+  - event: read_document -> { doc_id, day, time_slot }
+  - canonical: read_document -> target_ref doc:{doc_id}, value_final { doc_id, day, time_slot, read_at }
+- scheduler
+  - event: schedule_updated -> { assignment_count }
+  - canonical: execute_week -> target_ref global, value_final { week_schedule: [{ staff_id, day, block, activity, room_id }] }, context { day, time_slot }
+- calendar (innovatec)
+  - event: meeting_scheduled -> { stakeholder_id, day, time_slot }
+  - canonical: schedule_meeting -> target_ref stakeholder:{id}, value_final { day, time_slot, scheduled_at }
+- office
+  - event: notes_updated -> { notes_length }
+  - event: phone_call -> { stakeholder_id }
+- dialogue
+  - event: scenario_presented -> { node_id }
+  - event: decision_made -> { node_id, option_id }
+
+Expected actions por mecanica (ejemplos):
+- map: action_type visit_stakeholder, target_ref stakeholder:{id}
+- scheduler: action_type execute_week, target_ref global, constraints con rule_id
+
+
 Backend
 -------
 Carpeta: backend/

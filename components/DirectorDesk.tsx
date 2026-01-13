@@ -192,11 +192,11 @@ const DirectorDesk: React.FC<DirectorDeskProps> = ({ gameState, onNavigate, onCa
         ? { top: imageBounds.top, left: imageBounds.left, width: imageBounds.width, height: imageBounds.height }
         : { top: 0, left: 0, width: '100%', height: '100%' };
     const handleNotesUpdate = (notes: string) => {
-        engine.emitEvent('office', 'notes_updated', { length: notes.length });
+        engine.emitEvent('office', 'notes_updated', { notes_length: notes.length });
         onUpdateNotes(notes);
     };
     const handleCall = (stakeholder: Stakeholder) => {
-        engine.emitEvent('office', 'phone_call', { target: stakeholder.id });
+        engine.emitEvent('office', 'phone_call', { stakeholder_id: stakeholder.id });
         onCall(stakeholder);
     };
 

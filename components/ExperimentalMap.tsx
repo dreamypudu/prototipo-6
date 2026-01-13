@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { scenarios } from '../data/scenarios';
+import { getGameDate } from '../constants';
 import { ScenarioNode, MeetingSequence, ScenarioOption, GameState, DecisionLogEntry, TimeSlotType } from '../types';
 
 type MapTab = 'proactive' | 'inevitable' | 'contingent';
@@ -8,6 +9,14 @@ const getSequenceBadge = (sequence: MeetingSequence) => {
     if (sequence.isInevitable) return 'INEVITABLE';
     if (sequence.isContingent) return 'CONTINGENT';
     return 'PROACTIVE';
+};
+
+const getInevitableDateLabel = (sequence: MeetingSequence): string => {
+    if (!sequence.triggerMap) {
+        return 'Fecha: sin definir';
+    }
+    const { week, dayName } = getGameDate(sequence.triggerMap.day);
+    return `Fecha: Semana ${week} - ${dayName} (Dia ${sequence.triggerMap.day}) - ${sequence.triggerMap.slot}`;
 };
 
 const BridgeResponse: React.FC<{ option: ScenarioOption }> = ({ option }) => {
@@ -84,8 +93,13 @@ const SequenceTrack: React.FC<{
 
     return (
         <div className="bg-gray-900/30 p-6 rounded-xl border border-gray-700">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b-2 border-blue-500/30">
-                <h3 className="text-xl font-bold text-blue-300">{sequence.sequence_id}</h3>
+            <div className="flex items-start justify-between mb-4 pb-2 border-b-2 border-blue-500/30 gap-3">
+                <div>
+                    <h3 className="text-xl font-bold text-blue-300">{sequence.sequence_id}</h3>
+                    {sequence.isInevitable && (
+                        <p className="text-xs text-gray-400 mt-1">{getInevitableDateLabel(sequence)}</p>
+                    )}
+                </div>
                 <span className="text-[10px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-300 border border-gray-600">
                     {badge}
                 </span>

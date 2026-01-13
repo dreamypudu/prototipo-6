@@ -10,12 +10,27 @@ interface DocumentReaderProps {
 
 const DocumentReader: React.FC<DocumentReaderProps> = ({ documents, readDocuments, onMarkAsRead }) => {
     const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-    const { engine } = useMechanicContext();
+    const { engine, gameState } = useMechanicContext();
 
     const handleSelectDoc = (doc: Document) => {
         setSelectedDocId(doc.id);
         if (!readDocuments.includes(doc.id)) {
-            engine.emitEvent('documents', 'read_doc', { docId: doc.id });
+            engine.emitEvent('documents', 'read_document', {
+                doc_id: doc.id,
+                day: gameState.day,
+                time_slot: gameState.timeSlot
+            });
+            engine.emitCanonicalAction(
+                'documents',
+                'read_document',
+                `doc:${doc.id}`,
+                {
+                    doc_id: doc.id,
+                    day: gameState.day,
+                    time_slot: gameState.timeSlot,
+                    read_at: Date.now()
+                }
+            );
             onMarkAsRead(doc.id);
         }
     };

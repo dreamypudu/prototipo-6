@@ -10,12 +10,27 @@ interface EmailClientProps {
 
 const EmailClient: React.FC<EmailClientProps> = ({ inbox, onMarkAsRead }) => {
     const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
-    const { engine } = useMechanicContext();
+    const { engine, gameState } = useMechanicContext();
 
     const handleSelectEmail = (email: InboxEmail) => {
         setSelectedEmailId(email.email_id);
         if (!email.isRead) {
-            engine.emitEvent('inbox', 'read_email', { emailId: email.email_id });
+            engine.emitEvent('inbox', 'read_email', {
+                email_id: email.email_id,
+                day: gameState.day,
+                time_slot: gameState.timeSlot
+            });
+            engine.emitCanonicalAction(
+                'inbox',
+                'read_email',
+                `email:${email.email_id}`,
+                {
+                    email_id: email.email_id,
+                    day: gameState.day,
+                    time_slot: gameState.timeSlot,
+                    read_at: Date.now()
+                }
+            );
             onMarkAsRead(email.email_id);
         }
     };

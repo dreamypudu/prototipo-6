@@ -285,7 +285,7 @@ export default function App(): React.ReactElement {
     setPlayerActions(scenario.options.map(opt => ({ label: opt.text, action: opt.option_id, cost: "Decisión" })));
     startLogging(scenario.node_id);
 
-    mechanicEngine.emitEvent('dialogue', 'scenario_presented', { nodeId: scenario.node_id });
+    mechanicEngine.emitEvent('dialogue', 'scenario_presented', { node_id: scenario.node_id });
   }, [setPersonalizedDialogue, gameState.stakeholders]);
 
   const advanceTimeAndUpdateFocus = useCallback((justCompletedSequenceId?: string) => {
@@ -471,7 +471,10 @@ export default function App(): React.ReactElement {
             if (consequences.expected_actions) {
               mechanicEngine.registerExpectedActions(scenario.node_id, option.option_id, consequences.expected_actions);
             }
-            mechanicEngine.emitEvent('dialogue', 'decision_made', { nodeId: scenario.node_id, optionId: option.option_id });
+            mechanicEngine.emitEvent('dialogue', 'decision_made', {
+              node_id: scenario.node_id,
+              option_id: option.option_id
+            });
 
             setGameState(prev => {
                 const newStakeholders = prev.stakeholders.map(sh => sh.name === characterInFocus.name ? { ...sh, trust: Math.max(0, Math.min(100, sh.trust + (consequences.trustChange ?? 0))), support: Math.max(sh.minSupport, Math.min(sh.maxSupport, sh.support + (consequences.supportChange ?? 0))) } : sh);

@@ -180,13 +180,26 @@ const SchedulerInterface: React.FC<SchedulerInterfaceProps> = ({ gameState, onUp
                 roomId
             };
             onUpdateSchedule(newSchedule);
-            engine.emitEvent('scheduler', 'schedule_updated', { count: newSchedule.length });
+            engine.emitEvent('scheduler', 'schedule_updated', { assignment_count: newSchedule.length });
         }
         setEditingCell(null);
     };
 
     const handleExecuteWeek = () => {
-        engine.emitCanonicalAction('scheduler', 'execute_week', 'global', { week_schedule: gameState.weeklySchedule });
+        const normalizedWeekSchedule = gameState.weeklySchedule.map(assignment => ({
+            staff_id: assignment.staffId,
+            day: assignment.day,
+            block: assignment.block,
+            activity: assignment.activity,
+            room_id: assignment.roomId ?? null
+        }));
+        engine.emitCanonicalAction(
+            'scheduler',
+            'execute_week',
+            'global',
+            { week_schedule: normalizedWeekSchedule },
+            { day: gameState.day, time_slot: gameState.timeSlot }
+        );
         onExecuteWeek();
     };
 
