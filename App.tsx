@@ -28,7 +28,9 @@ type ActiveTab = string;
 type AppStep = 'version_selection' | 'splash' | 'game';
 
 const PERIOD_DURATION = 90;
-const API_BASE_URL = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL =
+  (import.meta as any)?.env?.VITE_API_URL ||
+  'https://prototipo-5-41cj.onrender.com';
 
 type ResolvedMechanicConfig = MechanicConfig & {
   label: string;
