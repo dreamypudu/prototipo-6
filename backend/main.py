@@ -1100,6 +1100,11 @@ def resolve_day_effects(session_id: str, day: int):
             effect = resolve_effect(exp, outcome)
             _apply_effects(global_deltas, stakeholder_deltas, effect, exp)
 
+        # Final safety: drop FK values if the referenced id is not present
+        for cmp in comparisons:
+            if cmp.get("expected_action_id") and cmp["expected_action_id"] not in expected_ids:
+                cmp["expected_action_id"] = None
+
         created_at = datetime.now(timezone.utc).isoformat()
         conn.execute("BEGIN")
         for cmp in comparisons:
