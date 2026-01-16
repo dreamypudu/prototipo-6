@@ -994,6 +994,8 @@ def resolve_day_effects(session_id: str, day: int):
             (session_id,),
         ).fetchall()
 
+        expected_ids = {r["expected_action_id"] for r in expected_rows}
+
         expected_actions = [
             {
                 "expected_action_id": r["expected_action_id"],
@@ -1051,7 +1053,7 @@ def resolve_day_effects(session_id: str, day: int):
             ]
             if not matches:
                 comparisons.append({
-                    "expected_action_id": exp["expected_action_id"],
+                    "expected_action_id": exp["expected_action_id"] if exp["expected_action_id"] in expected_ids else None,
                     "canonical_action_id": None,
                     "outcome": "FALSE",
                     "deviation": None,
@@ -1066,7 +1068,7 @@ def resolve_day_effects(session_id: str, day: int):
             result = handler(exp, best)
             outcome = "TRUE" if result.get("outcome") == "TRUE" else "FALSE"
             comparisons.append({
-                "expected_action_id": exp["expected_action_id"],
+                "expected_action_id": exp["expected_action_id"] if exp["expected_action_id"] in expected_ids else None,
                 "canonical_action_id": best["canonical_action_id"],
                 "outcome": outcome,
                 "deviation": None,
