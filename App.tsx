@@ -477,31 +477,47 @@ export default function App(): React.ReactElement {
           startedAt: sessionStartRef.current ?? Date.now(),
           endedAt: Date.now()
         });
-        await fetch(`${API_BASE_URL.replace(/\/$/, '')}/sessions`, {
+        
+        console.log(`[Backend] Attempting to connect to ${API_BASE_URL}`);
+        
+        const firstResp = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(exportPayload)
         });
 
+        if (!firstResp.ok) {
+          console.warn(`[Backend] POST /sessions failed with status ${firstResp.status}`);
+          return;
+        }
+
         const resp = await fetch(
           `${API_BASE_URL.replace(/\/$/, '')}/sessions/${exportPayload.session_metadata.session_id}/resolve_day_effects?day=${completedDay}`,
           { method: 'POST' }
         );
+        
         if (!resp.ok) {
-          console.warn('resolve_day_effects failed', await resp.text());
+          const errorText = await resp.text();
+          console.warn(`[Backend] resolve_day_effects failed with status ${resp.status}: ${errorText}`);
           return;
         }
+        
         const data = await resp.json();
         const globalDeltas = data.global_deltas || {};
         const stakeholderDeltas = data.stakeholder_deltas || {};
         setGameState((prev) => applyDailyDeltas(prev, completedDay, globalDeltas, stakeholderDeltas));
         const summary = summarizeDeltas(completedDay, globalDeltas, stakeholderDeltas, gameState.stakeholders);
         setDailySummary(summary);
-      } catch (err) {
-        console.warn('syncDayWithBackend error', err);
+      } catch (err: any) {
+        console.error('[Backend] syncDayWithBackend error:', {
+          error: err?.message || String(err),
+          apiUrl: API_BASE_URL,
+          type: err?.name
+        });
+        showToast(`Error de conexión: ${err?.message || 'No se pudo conectar al servidor'}`);
       }
     },
-    [config, applyDailyDeltas, gameState.stakeholders]
+    [config, applyDailyDeltas, gameState.stakeholders, showToast]
   );
 
   const presentScenario = useCallback((scenario: ScenarioNode) => {
