@@ -254,6 +254,13 @@ def create_schema(conn):
     )
     conn.execute(
         """
+        ALTER TABLE daily_effects
+        ADD COLUMN IF NOT EXISTS status TEXT,
+        ADD COLUMN IF NOT EXISTS applied_at TEXT
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS process_logs (
             process_log_id BIGSERIAL PRIMARY KEY,
             session_id TEXT NOT NULL,
@@ -638,12 +645,12 @@ def normalize_session(conn, session_id: str, session: dict, created_at: str):
         (session_id, user_id, version_id, start_time, end_time, created_at, payload),
     )
 
-    conn.execute("DELETE FROM explicit_decisions WHERE session_id = %s", (session_id,))
-    conn.execute("DELETE FROM expected_actions WHERE session_id = %s", (session_id,))
-    conn.execute("DELETE FROM canonical_actions WHERE session_id = %s", (session_id,))
-    conn.execute("DELETE FROM mechanic_events WHERE session_id = %s", (session_id,))
     conn.execute("DELETE FROM comparisons WHERE session_id = %s", (session_id,))
     conn.execute("DELETE FROM daily_effects WHERE session_id = %s", (session_id,))
+    conn.execute("DELETE FROM mechanic_events WHERE session_id = %s", (session_id,))
+    conn.execute("DELETE FROM canonical_actions WHERE session_id = %s", (session_id,))
+    conn.execute("DELETE FROM expected_actions WHERE session_id = %s", (session_id,))
+    conn.execute("DELETE FROM explicit_decisions WHERE session_id = %s", (session_id,))
     conn.execute("DELETE FROM process_logs WHERE session_id = %s", (session_id,))
     conn.execute("DELETE FROM player_actions_log WHERE session_id = %s", (session_id,))
     conn.execute("DELETE FROM session_state WHERE session_id = %s", (session_id,))
