@@ -365,3 +365,10 @@ export interface EmailTemplate {
     body: string;
     grants_information?: string;
 }
+
+// Daily effects summary used in frontend UI when resolving day effects
+export type DailyEffectSummary = {
+  day: number;
+  summary: string;
+  stakeholderDetails: string[];
+};
