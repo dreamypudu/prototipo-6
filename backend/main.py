@@ -236,35 +236,13 @@ def create_schema(conn):
             outcome TEXT,
             deviation TEXT,
             rule_id TEXT,
-            FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE,
-            FOREIGN KEY (expected_action_id) REFERENCES expected_actions(expected_action_id) ON DELETE CASCADE,
-            FOREIGN KEY (canonical_action_id) REFERENCES canonical_actions(canonical_action_id) ON DELETE CASCADE
+            FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
         )
         """
     )
-    # Ensure FK on comparisons has ON DELETE CASCADE (idempotent)
-    try:
-        conn.execute("ALTER TABLE comparisons DROP CONSTRAINT IF EXISTS comparisons_expected_action_id_fkey")
-        conn.execute(
-            """
-            ALTER TABLE comparisons
-            ADD CONSTRAINT comparisons_expected_action_id_fkey
-            FOREIGN KEY (expected_action_id) REFERENCES expected_actions(expected_action_id) ON DELETE CASCADE
-            """
-        )
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE comparisons DROP CONSTRAINT IF EXISTS comparisons_canonical_action_id_fkey")
-        conn.execute(
-            """
-            ALTER TABLE comparisons
-            ADD CONSTRAINT comparisons_canonical_action_id_fkey
-            FOREIGN KEY (canonical_action_id) REFERENCES canonical_actions(canonical_action_id) ON DELETE CASCADE
-            """
-        )
-    except Exception:
-        pass
+    # Drop legacy FKs to avoid insert issues when expected/canonical are missing
+    conn.execute("ALTER TABLE comparisons DROP CONSTRAINT IF EXISTS comparisons_expected_action_id_fkey CASCADE")
+    conn.execute("ALTER TABLE comparisons DROP CONSTRAINT IF EXISTS comparisons_canonical_action_id_fkey CASCADE")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS daily_effects (
@@ -695,8 +673,11 @@ def normalize_session(conn, session_id: str, session: dict, created_at: str):
             ),
         )
 
+    expected_ids = set()
     for action in expected_actions:
         source = action.get("source", {})
+        if action.get("expected_action_id"):
+            expected_ids.add(action.get("expected_action_id"))
         conn.execute(
             """
             INSERT INTO expected_actions (expected_action_id, session_id, source_node_id, source_option_id, action_type, target_ref, constraints, rule_id, created_at, mechanic_id, effects)
@@ -777,6 +758,8 @@ def normalize_session(conn, session_id: str, session: dict, created_at: str):
         )
 
     for comparison in comparisons:
+        exp_id = comparison.get("expected_action_id")
+        safe_expected_id = exp_id if exp_id in expected_ids else None
         conn.execute(
             """
             INSERT INTO comparisons (session_id, expected_action_id, canonical_action_id, outcome, deviation, rule_id)
@@ -784,7 +767,7 @@ def normalize_session(conn, session_id: str, session: dict, created_at: str):
             """,
             (
                 session_id,
-                comparison.get("expected_action_id"),
+                safe_expected_id,
                 comparison.get("canonical_action_id"),
                 comparison.get("outcome"),
                 _json_dump(comparison.get("deviation")),
