@@ -51,6 +51,16 @@ const defaultRule: ComparisonRule = (expected, actual) => {
   };
 };
 
+// Regla permisiva para rule_id que se resuelven en backend o no tienen constraints en front
+const passThroughRule: ComparisonRule = () => ({ outcome: 'DONE_OK' });
+
 export const comparisonRules: Record<string, ComparisonRule> = {
-  default_rule: defaultRule
+  default_rule: defaultRule,
+  meeting_time_rule_v1: passThroughRule,
+  visit_stakeholder_rule_v1: passThroughRule,
+  research_hours_rule_v1: passThroughRule,
+  training_commitment_rule_v1: passThroughRule,
+  cross_sector_help_rule_v1: passThroughRule,
+  scheduler_war_rule_v1: passThroughRule,
+  visit_priority_rule_v1: passThroughRule
 };
