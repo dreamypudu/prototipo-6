@@ -240,9 +240,66 @@ def create_schema(conn):
         )
         """
     )
-    # Drop legacy FKs to avoid insert issues when expected/canonical are missing
+    # Drop legacy FKs, clean orphans, then add FK with ON DELETE SET NULL (so Supabase shows relationships)
     conn.execute("ALTER TABLE comparisons DROP CONSTRAINT IF EXISTS comparisons_expected_action_id_fkey CASCADE")
     conn.execute("ALTER TABLE comparisons DROP CONSTRAINT IF EXISTS comparisons_canonical_action_id_fkey CASCADE")
+    conn.execute(
+        """
+        UPDATE comparisons c
+        SET expected_action_id = NULL
+        WHERE expected_action_id IS NOT NULL
+          AND NOT EXISTS (
+                SELECT 1 FROM expected_actions ea
+                WHERE ea.expected_action_id = c.expected_action_id
+          )
+        """
+    )
+    conn.execute(
+        """
+        UPDATE comparisons c
+        SET canonical_action_id = NULL
+        WHERE canonical_action_id IS NOT NULL
+          AND NOT EXISTS (
+                SELECT 1 FROM canonical_actions ca
+                WHERE ca.canonical_action_id = c.canonical_action_id
+          )
+        """
+    )
+    # Recreate FKs with ON DELETE SET NULL (guarded to avoid duplicate creation)
+    conn.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'comparisons_expected_action_id_fkey'
+            ) THEN
+                ALTER TABLE comparisons
+                ADD CONSTRAINT comparisons_expected_action_id_fkey
+                FOREIGN KEY (expected_action_id)
+                REFERENCES expected_actions(expected_action_id)
+                ON DELETE SET NULL;
+            END IF;
+        END$$;
+        """
+    )
+    conn.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'comparisons_canonical_action_id_fkey'
+            ) THEN
+                ALTER TABLE comparisons
+                ADD CONSTRAINT comparisons_canonical_action_id_fkey
+                FOREIGN KEY (canonical_action_id)
+                REFERENCES canonical_actions(canonical_action_id)
+                ON DELETE SET NULL;
+            END IF;
+        END$$;
+        """
+    )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS daily_effects (
