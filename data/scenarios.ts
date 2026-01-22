@@ -394,24 +394,29 @@ export const scenarios: ScenarioFile = {
   ],
   sequences: [
     // --- INEVITABLE EVENTS ---
-    {
-        sequence_id: "OFFICE_INTRO_SEQ",
-        stakeholderRole: "Asistente Administrativa",
-        initialDialogue: "Director {playerName}. Soy Sofía Castro, su administrativa de confianza. Lamento no haber podido presentarme antes, la mañana ha sido caótica.",
-        nodes: ["INTRO_S1_SALUDO","INTRO_S1_CONTEXTO","INTRO_S1_HORARIOS","INTRO_S1_MAPA","INTRO_S1_CORREOS","INTRO_S1_DOCUMENTOS","INTRO_S1_PC","INTRO_S1_ELECCION"],
-        finalDialogue: "Excelente. Le dejo instalarse. Recuerde revisar el mapa para visitar a los equipos.",
-        triggerMap: { day: 1, slot: 'tarde' }, 
-        isInevitable: true
-    },
+
     {
         sequence_id: "SCHEDULE_WAR_SEQ",
         stakeholderRole: "Jefe Sector Azul",
         initialDialogue: "(Los tres jefes entran a su oficina. El ambiente es tenso).",
         nodes: ["SCHEDULE_WAR_INTRO", "SCHEDULE_WAR_SOTO", "SCHEDULE_WAR_RIOS", "SCHEDULE_WAR_GUZMAN_RETORT", "SCHEDULE_WAR_SOTO_FINAL"],
         finalDialogue: "Procederemos a cargar las propuestas en el sistema. Verá alertas rojas donde hay conflictos.",
+        consumesTime: false,
         triggerMap: { day: 1, slot: 'mañana' }, 
         isInevitable: true
     },
+
+    {
+        sequence_id: "OFFICE_INTRO_SEQ",
+        stakeholderRole: "Asistente Administrativa",
+        initialDialogue: "Director {playerName}. Soy Sofía Castro, su administrativa de confianza. Lamento no haber podido presentarme antes, la mañana ha sido caótica.",
+        nodes: ["INTRO_S1_SALUDO","INTRO_S1_CONTEXTO","INTRO_S1_HORARIOS","INTRO_S1_MAPA","INTRO_S1_CORREOS","INTRO_S1_DOCUMENTOS","INTRO_S1_PC","INTRO_S1_ELECCION"],
+        finalDialogue: "Excelente. Le dejo instalarse. Recuerde revisar el mapa para visitar a los equipos.",
+        consumesTime: false,
+        triggerMap: { day: 1, slot: 'mañana' }, 
+        isInevitable: true
+    },
+
     {
         sequence_id: "CRISIS_FARMACIA",
         stakeholderRole: "Asistente Administrativa",

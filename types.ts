@@ -324,6 +324,7 @@ export interface MeetingSequence {
     initialDialogue: string;
     nodes: string[];
     finalDialogue: string;
+    consumesTime?: boolean;
     triggerMap?: {
         day: number;
         slot: TimeSlotType;

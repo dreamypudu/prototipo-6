@@ -538,7 +538,7 @@ export default function App(): React.ReactElement {
     mechanicEngine.emitEvent('dialogue', 'scenario_presented', { node_id: scenario.node_id });
   }, [setPersonalizedDialogue, gameState.stakeholders]);
 
-  const advanceTimeAndUpdateFocus = useCallback((justCompletedSequenceId?: string) => {
+  const advanceTimeAndUpdateFocus = useCallback((justCompletedSequenceId?: string, options?: { skipTimeAdvance?: boolean }) => {
     let stateAfterMeetingEnd = { ...gameState };
     if (justCompletedSequenceId && !stateAfterMeetingEnd.completedSequences.includes(justCompletedSequenceId)) {
       stateAfterMeetingEnd.completedSequences = [...stateAfterMeetingEnd.completedSequences, justCompletedSequenceId];
@@ -549,16 +549,23 @@ export default function App(): React.ReactElement {
         sh.name === characterInFocus.name ? { ...sh, lastMetDay: gameState.day } : sh
       );
     }
-    const newState = advanceTime(stateAfterMeetingEnd);
+    const skipTimeAdvance = Boolean(options?.skipTimeAdvance);
+    const newState = skipTimeAdvance ? stateAfterMeetingEnd : advanceTime(stateAfterMeetingEnd);
     setGameState(newState);
-    const completedDay = (newState as any).__completedDay as number | null;
-    if (completedDay !== null && completedDay > 0) {
-      const snapshot = { ...newState };
-      delete (snapshot as any).__completedDay;
-      syncDayWithBackend(completedDay, snapshot);
+    if (!skipTimeAdvance) {
+      const completedDay = (newState as any).__completedDay as number | null;
+      if (completedDay !== null && completedDay > 0) {
+        const snapshot = { ...newState };
+        delete (snapshot as any).__completedDay;
+        syncDayWithBackend(completedDay, snapshot);
+      }
+      setCountdown(PERIOD_DURATION);
+    } else {
+      // Reactivar el timer y evitar que quede congelado si el contador estaba en 0
+      setIsTimerPaused(false);
+      setCountdown(prev => prev > 0 ? prev : PERIOD_DURATION);
     }
     setCharacterInFocus(null);
-    setCountdown(PERIOD_DURATION);
     syncLogs();
   }, [gameState, characterInFocus, advanceTime, syncLogs]);
 
@@ -831,11 +838,12 @@ export default function App(): React.ReactElement {
     
     if (action.action === 'conclude_meeting') {
         const justCompletedSequenceId = currentMeeting?.sequence.sequence_id;
+        const skipTimeAdvance = currentMeeting?.sequence?.consumesTime === false;
         setCurrentMeeting(null);
         setConversationMode('idle');
         setQuestionsOrigin(null);
         setQuestionsBaseDialogue('');
-        advanceTimeAndUpdateFocus(justCompletedSequenceId);
+        advanceTimeAndUpdateFocus(justCompletedSequenceId, { skipTimeAdvance });
         setIsLoading(false);
         return;
     }
